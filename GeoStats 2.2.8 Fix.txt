@@ -31,7 +31,7 @@
 //************************************************************* START OF SCRIPT *************************************************************//
 
 // NUM OF COUNTRIES SHOWN IN TOP INCORRECT LIST
-let TOP_INCORRECT_NUM = 5;
+let TOP_INCORRECT_NUM = 10;
 // CHANGE THIS NUMBER ^^^^^ TO THE NUMBER OF COUNTRIES YOU WANT SHOWN
 
 //GLOBAL VARIABLES
@@ -63,6 +63,9 @@ let checkingChallengeRoundOver = false;
 let green_range = 0.75;
 let yellow_range = 0.25;
 let red_range = 0;
+
+// Initialize the interceptor
+setTimeout(initGameIdInterceptor, 3000);
 
 //Set the map color ranges
 if(window.localStorage.getItem(`duels-map-color-left-range-${USER_ID}`)){
@@ -364,7 +367,7 @@ function duelsGameFinished(userHealth,opponentHealth,opponentRating,userBefore,u
     if(window.sessionStorage.getItem('current-duels-game-id') == gameId){
         return;
     }
-    window.sessionStorage.setItem('current-duels-game-id', gameId);
+    window.sessionStorage.setItem('current-duels-game-id', null);
 
     //Time String to Seconds
     function timeToSeconds(value){
@@ -544,7 +547,6 @@ async function checkDuelsGuess(api){
         fetch(api,{credentials: 'include'})
             .then((res) => res.json())
             .then((out) => {
-
                 if(out.teams[0].players[0].playerId === USER_ID){
                     player_index = 0;
                 }
@@ -1219,34 +1221,58 @@ function classicCheck(){
     }
 };
 
+// Initialize fetch interceptor to capture gameId from duels API
+function initGameIdInterceptor() {
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+        const [resource, config] = args;
+
+        // Intercept API call to the trails endpoint
+        if (typeof resource === 'string' && resource.includes('/api/v4/trails')) {
+            if (config && config.body instanceof FormData) {
+                const formData = config.body;
+                const gameId = formData.get('gameId'); // Extract gameId from form data
+
+                if (gameId) {
+                    window.sessionStorage.setItem('current-duels-game-id', gameId);
+                } else {
+                    console.warn('Game ID not found in FormData');
+                }
+            } else {
+                console.warn('Request body is not FormData:', config.body);
+            }
+        }
+
+        return originalFetch.apply(this, args);
+    };
+}
+
 //Check if the user is playing a duels game
 function duelsCheck(){
-    if(!location.pathname.startsWith('/duels/') || location.pathname.endsWith('/summary')){
-        return;
-    }
-    const game_tag = window.location.href.substring(window.location.href.lastIndexOf('/') + 1);
-    const api_url = "https://game-server.geoguessr.com/api/duels/"+game_tag;
+    const gameId = window.sessionStorage.getItem('current-duels-game-id');
+    const api_url = "https://game-server.geoguessr.com/api/duels/" + gameId;
 
     //If a round has finished
-    if(document.getElementsByClassName('overlay_overlay__dG_Jq').length > 0){
+    if(document.getElementsByClassName('duels-game-wrapper_root__ukZts').length > 0){
         //If the round is finished
-        if(document.getElementsByClassName('round-score_container__czmth').length > 0){
+        if(document.getElementsByClassName('round-score-2_backgroundContainer__GGH4l').length > 0){
             if(!checkingDuelsRoundOver){
                 checkingDuelsRoundOver = true;
                 checkDuelsGuess(api_url);
             }
         }
         //If the game is finished
-        else if(document.getElementsByClassName('game-summary_container__Ji5lI').length > 0){
+        else if(document.getElementsByClassName('status-box_gameResult__RGgfm').length > 0){
             if(!checkingDuelsGameOver){
+                console.log('Game sent');
                 checkingDuelsGameOver = true;
                 checkDuelsGuess(api_url);
             }
         }
-    }
-    else{
-        checkingDuelsRoundOver = false;
-        checkingDuelsGameOver = false;
+        else{
+            checkingDuelsRoundOver = false;
+            checkingDuelsGameOver = false;
+        }
     }
 };
 
